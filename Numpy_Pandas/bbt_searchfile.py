@@ -3,9 +3,10 @@
 import bbt_analyze
 import re
 import os
-import pandas as pd
-import config
-from collections import Counter
+import bbt_save
+
+file = bbt_save
+
 
 class Analyze:
 	def __init__(self, year, month, day, path, platform, app_id, channel_type, channel, mylog):
@@ -14,6 +15,7 @@ class Analyze:
 		self.month = month
 		self.day = day
 		self.path = path
+		self.thedate = self.year + self.month + self.day
 		self.platform = platform
 		self.app_id = app_id
 		self.chanelType = channel_type
@@ -23,23 +25,50 @@ class Analyze:
 		if self.day.isdigit():
 			self.twoday = re.compile(
 				r'%s/%s/%s/%s/%s/%s/%s' % (app_id, platform, channel_type, channel, year, month, str(int(day) + 1)))
+		#注册事件
 		self.registevent = 0
+		#注册用户
 		self.register = 1
+		#累计注册用户量
 		self.allregist = 0
 		self.registuser = []
-
+		#启动事件
 		self.startevent = 0
+		#启动app的独立用户(uv)
+		self.startuv = 0
+		self.startUvUser = []
+		#启动app访客数
+		self.startnouser = 0
+		self.startNoUser = []
+		#累计访客数
+		self.allnouser = 0
+		#日活(启动去重)
 		self.live = 0
 		self.liveuser = []
-
+		#次日继续使用的
 		self.twostart = 0
 		self.twostartuser = []
 		self.rate = 0
-
 		self.recomlist = []
+		#内容分类点击
 		self.content = 0
+		#专题展示(pv)
 		self.title = 0
+		#专家展示(pv)
 		self.expert = 0
+		## 全部页面PV之和
+		self.page = 0
+		self.payUser = []
+		self.mediauser = []
+		#付费用户
+		self.payevent = 0
+		self.rea = []
+		self.reb = []
+		#累计付费用户
+		self.allpay = 0
+		#播放节目数
+		# self.playnum = 0
+		self.playUser = []
 
 	# 昨日的文件
 	def checkday_files(self, path):
@@ -75,6 +104,9 @@ class Analyze:
 			elif event[0].endswith('/2'):
 				bbt_analyze.startUser(self, f)
 				bbt_analyze.startEvent(self, f)
+				bbt_analyze.startUvEvent(self, f)
+				bbt_analyze.startNouser(self, f)
+
 
 			elif event[0].endswith('/3'):
 				bbt_analyze.recommendEvent(self, f)
@@ -88,69 +120,25 @@ class Analyze:
 			elif event[0].endswith('/20'):
 				bbt_analyze.expertEvent(self, f)
 
-		self.save_regist('1', self.registevent)
-		self.save_daylive('2', self.startevent)
-		self.save_content('5', self.content)
-		self.save_titlevent('18', self.title)
-		self.save_expertevet('20', self.expert)
-		self.save_regist('30', self.register)
-		self.save_daylive('31', self.live)
+			elif event[0].endswith('/24'):
+				bbt_analyze.playEvent(self, f)
+
+			elif event[0].endswith('/32'):
+				bbt_analyze.pageEvent(self, f)
+
+			elif event[0].endswith('/33'):
+				bbt_analyze.payEvent(self, f)
+
+		# 判断日期是否有日的参数，如果有统计
 		if self.day.isdigit():
 			for f in twofile:
 				event = os.path.split(f)
 				if event[0].endswith('/2'):
 					bbt_analyze.retentRate(self, f)
-		self.save_rate('32', self.twostartuser, self.registuser)
-
-		recommend = Counter(self.recomlist)
-		for para,court in recommend.items():
-			self.save_recommend('3', court, para)
-
-	def save_registevent(self, count_id, regisevent):
-		bbt_analyze.save_date(self, count_id, regisevent)
-
-	def save_startevent(self, count_id, start):
-		bbt_analyze.save_date(self, count_id, start)
-
-	def save_recommend(self, count_id, recomend, para):
-		bbt_analyze.save2_date(self, count_id, recomend, para)
-
-	def save_content(self, count_id, content):
-		bbt_analyze.save_date(self, count_id, content)
-
-	def save_titlevent(self, count_id, title):
-		bbt_analyze.save_date(self, count_id, title)
-
-	def save_expertevet(self, count_id, expert):
-		bbt_analyze.save_date(self, count_id, expert)
-
-	def save_regist(self, count_id, register):
-		bbt_analyze.save_date(self, count_id, register)
-
-	def save_daylive(self, count_id, live):
-		bbt_analyze.save_date(self, count_id, live)
-
-	def save_rate(self, count_id, twostartuser, registuser):
-		olduser = list(set(twostartuser) & set(registuser))
-		try:
-			self.rate = len(olduser) / self.register * 100
-			bbt_analyze.save_date(self, count_id, self.rate)
-		except Exception as e:
-			self.mylog.debug('被除数不能为0',e)
-
-	# print('次日留存率为:%.2f%%' % (rate))
-
-	def getExcel(self):
-		thedate = self.year + self.month + self.day
-		bbt_analyze.find_date(self, thedate)
-		df = pd.DataFrame({'事件ID': [],
-						   '事件名称': ['累计注册用户', '日活', '次日留存率', '注册事件', '启动事件',
-									 '首页推荐位点击', '内容分类点击', '专题展示', '专家展示'],
-						   'key':[],'消息数量':[self.allregist, self.live, self.rate, self.registevent, self.startevent,
-									  self.recommend, self.content, self.title, self.expert],'独立用户数':[]})
-		df.to_excel(config.root + thedate + '.xlsx')
+		file.save_rate(self, '42', self.twostartuser, self.registuser)
 
 	def run(self):
 		self.checkday_files(self.path)
-		# 生成excel文件
-		# self.getExcel()
+		file.save_data(self)
+		file.save_payrate(self)
+		file.getExcel(self)
